@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VSM Digital Twin — IE Flagship</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c0f;
+  --bg2: #111318;
+  --bg3: #181c23;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #e8eaf0;
+  --muted: #6b7280;
+  --accent: #00e5a0;
+  --accent2: #0070f3;
+  --warn: #f59e0b;
+  --danger: #ef4444;
+  --purple: #8b5cf6;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --font-body: 'Inter', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;overflow:hidden}
+/* LAYOUT */
+.shell{display:grid;grid-template-rows:52px 1fr;grid-template-columns:260px 1fr 320px;height:100vh}
+/* TOPBAR */
+.topbar{grid-column:1/-1;display:flex;align-items:center;padding:0 20px;border-bottom:1px solid var(--border);gap:16px;background:var(--bg)}
+.logo{font-family:var(--font-display);font-weight:700;font-size:15px;letter-spacing:0.02em;color:var(--accent)}
+.logo span{color:var(--muted);font-weight:400}
+.topbar-tabs{display:flex;gap:2px;margin-left:24px}
+.tab{padding:5px 14px;font-size:12px;border-radius:6px;cursor:pointer;color:var(--muted);font-family:var(--font-mono);transition:all .15s}
+.tab.active,.tab:hover{background:var(--bg3);color:var(--text)}
+.tab.active{color:var(--accent)}
+.spacer{flex:1}
+.run-btn{background:var(--accent);color:#000;font-size:12px;font-weight:600;font-family:var(--font-display);padding:6px 18px;border-radius:6px;border:none;cursor:pointer;letter-spacing:0.04em;transition:opacity .15s}
+.run-btn:hover{opacity:.85}
+.run-btn.running{background:var(--warn);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+/* SIDEBAR LEFT */
+.sidebar-left{background:var(--bg2);border-right:1px solid var(--border);padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:20px}
+.section-label{font-size:10px;font-family:var(--font-mono);letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+.param-group{display:flex;flex-direction:column;gap:8px}
+.param-row{display:flex;flex-direction:column;gap:4px}
+.param-label{font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.param-input{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono);font-size:12px;padding:6px 10px;width:100%;outline:none;transition:border .15s}
+.param-input:focus{border-color:var(--accent)}
+.param-slider{-webkit-appearance:none;width:100%;height:3px;border-radius:2px;background:var(--bg3);outline:none}
+.param-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer}
+.slider-row{display:flex;align-items:center;gap:8px}
+.slider-val{font-family:var(--font-mono);font-size:11px;color:var(--accent);min-width:36px;text-align:right}
+/* CANVAS */
+.canvas-area{background:var(--bg);position:relative;overflow:hidden}
+#vsm-canvas{width:100%;height:100%}
+.canvas-overlay{position:absolute;top:12px;left:12px;display:flex;gap:8px}
+.badge{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;font-family:var(--font-mono);color:var(--muted)}
+.badge span{color:var(--text)}
+/* SIDEBAR RIGHT — AI COPILOT */
+.sidebar-right{background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column}
+.copilot-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.copilot-title{font-family:var(--font-display);font-weight:600;font-size:13px}
+.ai-badge{font-size:9px;background:var(--purple);color:#fff;padding:2px 7px;border-radius:99px;font-family:var(--font-mono);letter-spacing:.06em}
+.chat-area{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:100%;font-size:12.5px;line-height:1.65}
+.msg.system{color:var(--muted);font-style:italic;font-size:11px;text-align:center;padding:4px 0}
+.msg.ai{background:var(--bg3);border:1px solid var(--border);border-radius:8px 8px 8px 2px;padding:10px 12px;color:var(--text)}
+.msg.ai .ai-label{font-size:9px;font-family:var(--font-mono);color:var(--purple);margin-bottom:5px;letter-spacing:.08em}
+.msg.user{background:rgba(0,229,160,0.07);border:1px solid rgba(0,229,160,0.15);border-radius:8px 8px 2px 8px;padding:10px 12px;align-self:flex-end;color:var(--text)}
+.typing{display:flex;gap:4px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px 8px 8px 2px;width:fit-content}
+.typing span{width:5px;height:5px;border-radius:50%;background:var(--purple);animation:bounce .8s ease-in-out infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.chat-input-area{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px}
+.chat-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-body);font-size:12px;padding:8px 12px;outline:none;resize:none;transition:border .15s}
+.chat-input:focus{border-color:var(--purple)}
+.send-btn{background:var(--purple);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s;align-self:flex-end}
+.send-btn:hover{opacity:.85}
+.send-btn svg{width:14px;height:14px;fill:#fff}
+/* KPI PANEL */
+.kpi-strip{position:absolute;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);display:flex;gap:0;height:70px}
+.kpi{flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 16px;border-right:1px solid var(--border)}
+.kpi:last-child{border-right:none}
+.kpi-label{font-size:9px;font-family:var(--font-mono);letter-spacing:.1em;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+.kpi-value{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--accent)}
+.kpi-value.warn{color:var(--warn)}
+.kpi-value.bad{color:var(--danger)}
+.kpi-sub{font-size:9px;color:var(--muted);font-family:var(--font-mono);margin-top:1px}
+/* QUICK ACTIONS */
+.quick-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+.qa-btn{background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--muted);font-size:10px;font-family:var(--font-mono);padding:4px 8px;cursor:pointer;transition:all .15s}
+.qa-btn:hover{border-color:var(--purple);color:var(--text)}
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+/* STEP HIGHLIGHT */
+.step-highlight{animation:glow-step 1.5s ease-in-out infinite}
+@keyframes glow-step{0%,100%{filter:drop-shadow(0 0 4px var(--accent))}50%{filter:drop-shadow(0 0 12px var(--accent))}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="logo">VSM<span>twin</span></div>
+    <div class="topbar-tabs">
+      <div class="tab active" onclick="setTab('model')">Model</div>
+      <div class="tab" onclick="setTab('sim')">Simulation</div>
+      <div class="tab" onclick="setTab('report')">Report</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="status-dot" id="status-dot"></div>
+    <button class="run-btn" id="run-btn" onclick="runSimulation()">▶ RUN SIM</button>
+  </div>
+
+  <!-- SIDEBAR LEFT -->
+  <div class="sidebar-left">
+    <div>
+      <div class="section-label">Process Parameters</div>
+      <div class="param-group">
+        <div class="param-row">
+          <div class="param-label">Customer demand (units/day)</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" id="demand" min="50" max="500" value="200" oninput="updateParam('demand',this.value)">
+            <div class="slider-val" id="demand-val">200</div>
+          </div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">Shift hours / day</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" id="shift" min="6" max="24" value="8" oninput="updateParam('shift',this.value)">
+            <div class="slider-val" id="shift-val">8</div>
+          </div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">Number of operators</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" id="operators" min="1" max="20" value="6" oninput="updateParam('operators',this.value)">
+            <div class="slider-val" id="operators-val">6</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Process Steps</div>
+      <div class="param-group" id="steps-params"></div>
+    </div>
+
+    <div>
+      <div class="section-label">Lean Targets</div>
+      <div class="param-group">
+        <div class="param-row">
+          <div class="param-label">Target OEE (%)</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" id="oee-target" min="50" max="95" value="85" oninput="updateParam('oee-target',this.value)">
+            <div class="slider-val" id="oee-target-val">85</div>
+          </div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">Max WIP per station</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" id="wip-max" min="2" max="30" value="10" oninput="updateParam('wip-max',this.value)">
+            <div class="slider-val" id="wip-max-val">10</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div class="canvas-area" id="canvas-area">
+    <svg id="vsm-canvas"></svg>
+    <div class="canvas-overlay">
+      <div class="badge">Current State VSM</div>
+      <div class="badge" id="takt-badge">Takt: <span id="takt-display">—</span>s</div>
+      <div class="badge" id="bottleneck-badge">Bottleneck: <span id="bottleneck-display">—</span></div>
+    </div>
+    <div class="kpi-strip">
+      <div class="kpi"><div class="kpi-label">Lead Time</div><div class="kpi-value" id="kpi-lt">—</div><div class="kpi-sub">days</div></div>
+      <div class="kpi"><div class="kpi-label">Value-Add %</div><div class="kpi-value" id="kpi-va">—</div><div class="kpi-sub">of total time</div></div>
+      <div class="kpi"><div class="kpi-label">Total WIP</div><div class="kpi-value" id="kpi-wip">—</div><div class="kpi-sub">units in system</div></div>
+      <div class="kpi"><div class="kpi-label">Throughput</div><div class="kpi-value" id="kpi-tp">—</div><div class="kpi-sub">units/day</div></div>
+      <div class="kpi"><div class="kpi-label">OEE</div><div class="kpi-value" id="kpi-oee">—</div><div class="kpi-sub">overall equipment eff.</div></div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR RIGHT — AI COPILOT -->
+  <div class="sidebar-right">
+    <div class="copilot-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <div class="copilot-title">IE Copilot</div>
+          <div class="ai-badge">AI</div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--font-mono)">Powered by Claude</div>
+      </div>
+    </div>
+    <div class="chat-area" id="chat-area">
+      <div class="msg system">Copilot ready — run a simulation to get AI analysis</div>
+      <div class="msg ai">
+        <div class="ai-label">COPILOT</div>
+        Welcome. I'm your IE Copilot. I can analyze your VSM, identify waste, recommend kaizen bursts, and compare current vs. future state.<br><br>
+        Set your process parameters on the left, then hit <strong style="color:var(--accent)">RUN SIM</strong> — or ask me anything.
+        <div class="quick-actions">
+          <button class="qa-btn" onclick="quickAsk('What are the 8 wastes I should look for in this process?')">8 wastes</button>
+          <button class="qa-btn" onclick="quickAsk('Explain takt time and how to calculate it')">takt time</button>
+          <button class="qa-btn" onclick="quickAsk('What is OEE and what are world-class benchmarks?')">OEE benchmarks</button>
+          <button class="qa-btn" onclick="quickAsk('How do I reduce WIP in a push system?')">reduce WIP</button>
+        </div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <textarea class="chat-input" id="chat-input" rows="2" placeholder="Ask about waste, kaizen, takt time…" onkeydown="handleKey(event)"></textarea>
+      <button class="send-btn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- STATE ----
+const steps = [
+  { id:'supply',  name:'Supplier',     ct:0,    co:0,    oee:100, wip:0,   isSupplier:true },
+  { id:'stamp',   name:'Stamping',     ct:28,   co:60,   oee:82,  wip:12  },
+  { id:'weld',    name:'Welding',      ct:35,   co:45,   oee:75,  wip:18  },
+  { id:'paint',   name:'Painting',     ct:22,   co:30,   oee:88,  wip:8   },
+  { id:'assemble',name:'Assembly',     ct:40,   co:20,   oee:91,  wip:14  },
+  { id:'inspect', name:'Inspection',   ct:15,   co:10,   oee:95,  wip:5   },
+  { id:'ship',    name:'Customer',     ct:0,    co:0,    oee:100, wip:0,   isCustomer:true },
+];
+
+let params = { demand:200, shift:8, operators:6, 'oee-target':85, 'wip-max':10 };
+let simResults = null;
+let activeTab = 'model';
+
+// ---- INIT ----
+function init() {
+  buildStepParams();
+  drawVSM();
+  computeKPIs();
+}
+
+function setTab(t) {
+  activeTab = t;
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  event.target.classList.add('active');
+  if(t==='report') generateReport();
+}
+
+function updateParam(id, val) {
+  params[id] = parseFloat(val);
+  document.getElementById(id+'-val').textContent = val;
+  computeKPIs();
+  drawVSM();
+}
+
+function buildStepParams() {
+  const container = document.getElementById('steps-params');
+  container.innerHTML = '';
+  steps.filter(s=>!s.isSupplier&&!s.isCustomer).forEach((s,i)=>{
+    container.innerHTML += `
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:600;color:var(--text);margin-bottom:8px;font-family:var(--font-display)">${s.name}</div>
+        <div class="param-row" style="margin-bottom:5px">
+          <div class="param-label">Cycle time (s)</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" min="5" max="120" value="${s.ct}" oninput="updateStep(${i+1},'ct',this.value,this)">
+            <div class="slider-val" id="ct-val-${i+1}">${s.ct}</div>
+          </div>
+        </div>
+        <div class="param-row">
+          <div class="param-label">OEE (%)</div>
+          <div class="slider-row">
+            <input type="range" class="param-slider" min="40" max="99" value="${s.oee}" oninput="updateStep(${i+1},'oee',this.value,this)">
+            <div class="slider-val" id="oee-val-${i+1}">${s.oee}</div>
+          </div>
+        </div>
+      </div>`;
+  });
+}
+
+function updateStep(idx, key, val, el) {
+  steps[idx][key] = parseFloat(val);
+  document.getElementById(`${key}-val-${idx}`).textContent = val;
+  computeKPIs();
+  drawVSM();
+}
+
+// ---- SIMULATION ENGINE (DES-inspired) ----
+function computeKPIs() {
+  const shift_s = params.shift * 3600;
+  const takt = shift_s / params.demand;
+  
+  const processSteps = steps.filter(s=>!s.isSupplier&&!s.isCustomer);
+  
+  // Effective cycle times (accounting for OEE)
+  const effectiveCTs = processSteps.map(s => s.ct / (s.oee/100));
+  
+  // Bottleneck = step with highest effective CT
+  const maxECT = Math.max(...effectiveCTs);
+  const bottleneckIdx = effectiveCTs.indexOf(maxECT);
+  const bottleneck = processSteps[bottleneckIdx];
+  
+  // Throughput limited by bottleneck
+  const throughput = Math.min(Math.floor(shift_s / maxECT), params.demand);
+  
+  // Total WIP
+  let totalWIP = processSteps.reduce((a,s)=>a+s.wip,0);
+  
+  // Lead time via Little's Law: LT = WIP / Throughput_rate
+  const tp_per_sec = throughput / shift_s;
+  const leadTimeDays = totalWIP / (tp_per_sec * shift_s);
+  
+  // Value-added time = sum of base CTs
+  const totalCT = processSteps.reduce((a,s)=>a+s.ct, 0);
+  const totalECT = effectiveCTs.reduce((a,v)=>a+v, 0);
+  const va_pct = Math.round((totalCT / (totalECT + totalWIP*5)) * 100);
+  
+  // Average OEE
+  const avgOEE = Math.round(processSteps.reduce((a,s)=>a+s.oee,0)/processSteps.length);
+  
+  // Update KPIs
+  const ltEl = document.getElementById('kpi-lt');
+  const ltVal = leadTimeDays.toFixed(1);
+  ltEl.textContent = ltVal;
+  ltEl.className = 'kpi-value' + (leadTimeDays > 5 ? ' bad' : leadTimeDays > 3 ? ' warn' : '');
+  
+  document.getElementById('kpi-va').textContent = Math.min(va_pct,99)+'%';
+  document.getElementById('kpi-va').className = 'kpi-value' + (va_pct < 20 ? ' bad' : va_pct < 40 ? ' warn' : '');
+  
+  document.getElementById('kpi-wip').textContent = totalWIP;
+  document.getElementById('kpi-wip').className = 'kpi-value' + (totalWIP > params['wip-max']*processSteps.length ? ' bad' : '');
+  
+  document.getElementById('kpi-tp').textContent = throughput;
+  document.getElementById('kpi-oee').textContent = avgOEE+'%';
+  document.getElementById('kpi-oee').className = 'kpi-value' + (avgOEE < params['oee-target'] ? ' warn' : '');
+  
+  document.getElementById('takt-display').textContent = Math.round(takt);
+  document.getElementById('bottleneck-display').textContent = bottleneck.name;
+  
+  simResults = { takt, throughput, totalWIP, leadTimeDays, va_pct, avgOEE, bottleneck, effectiveCTs, processSteps, shift_s };
+}
+
+// ---- VSM CANVAS ----
+function drawVSM() {
+  const svg = document.getElementById('vsm-canvas');
+  const area = document.getElementById('canvas-area');
+  const W = area.clientWidth;
+  const H = area.clientHeight - 70; // minus KPI strip
+  
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('width', W);
+  svg.setAttribute('height', H);
+  
+  const processSteps = steps;
+  const n = processSteps.length;
+  const boxW = Math.min(110, (W - 80) / n - 16);
+  const boxH = 70;
+  const startX = (W - (n * (boxW + 20) - 20)) / 2;
+  const midY = H * 0.38;
+  const timelineY = H * 0.72;
+  
+  let html = `<defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#6b7280" stroke-width="1.5"/>
+    </marker>
+    <marker id="arr-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#00e5a0" stroke-width="1.5"/>
+    </marker>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>`;
+  
+  // Info flow arrow at top
+  html += `<line x1="${startX+boxW*0.5}" y1="${midY-80}" x2="${startX+(n-1)*(boxW+20)+boxW*0.5}" y2="${midY-80}" stroke="#374151" stroke-width="1" stroke-dasharray="5,3" marker-end="url(#arr)"/>`;
+  html += `<text x="${W/2}" y="${midY-88}" fill="#4b5563" font-size="10" text-anchor="middle" font-family="DM Mono, monospace">INFORMATION FLOW</text>`;
+  
+  // Draw each step
+  processSteps.forEach((step, i) => {
+    const x = startX + i * (boxW + 20);
+    const y = midY - boxH/2;
+    
+    const isBottleneck = simResults && simResults.bottleneck && simResults.bottleneck.id === step.id;
+    const isSupplier = step.isSupplier;
+    const isCustomer = step.isCustomer;
+    
+    let fillColor = '#181c23';
+    let strokeColor = '#374151';
+    let strokeWidth = 1;
+    
+    if(isBottleneck) { strokeColor = '#ef4444'; strokeWidth = 2; }
+    if(isSupplier || isCustomer) { fillColor = '#111827'; strokeColor = '#1f2937'; }
+    
+    // Push arrow (except after last)
+    if(i < n-1) {
+      const arrowColor = isBottleneck ? '#ef4444' : '#374151';
+      html += `<line x1="${x+boxW}" y1="${midY}" x2="${x+boxW+18}" y2="${midY}" stroke="${arrowColor}" stroke-width="1.5" marker-end="url(#arr)"/>`;
+    }
+    
+    // WIP triangle (between steps, not for supplier/customer)
+    if(!isSupplier && !isCustomer && i > 0) {
+      const wipX = x - 10;
+      const wip = step.wip;
+      const wipColor = wip > params['wip-max'] ? '#ef4444' : '#f59e0b';
+      html += `<polygon points="${wipX-10},${midY+12} ${wipX+10},${midY+12} ${wipX},${midY-8}" fill="${wipColor}" opacity="0.8"/>`;
+      html += `<text x="${wipX}" y="${midY+26}" fill="${wipColor}" font-size="10" text-anchor="middle" font-family="DM Mono, monospace">${wip}</text>`;
+    }
+    
+    // Box
+    html += `<rect x="${x}" y="${y}" width="${boxW}" height="${boxH}" rx="8" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/>`;
+    
+    if(isSupplier || isCustomer) {
+      html += `<text x="${x+boxW/2}" y="${midY-4}" fill="#9ca3af" font-size="11" text-anchor="middle" font-family="Syne, sans-serif" font-weight="600">${step.name}</text>`;
+      // Factory/customer icon
+      const iconY = y + 12;
+      if(isSupplier) html += `<text x="${x+boxW/2}" y="${iconY+14}" fill="#374151" font-size="20" text-anchor="middle">🏭</text>`;
+      if(isCustomer) html += `<text x="${x+boxW/2}" y="${iconY+14}" fill="#374151" font-size="20" text-anchor="middle">🏪</text>`;
+    } else {
+      // Step name
+      html += `<text x="${x+boxW/2}" y="${y+16}" fill="${isBottleneck?'#fca5a5':'#d1d5db'}" font-size="10" text-anchor="middle" font-family="Syne, sans-serif" font-weight="600">${step.name}</text>`;
+      // CT value
+      html += `<text x="${x+boxW/2}" y="${y+32}" fill="${isBottleneck?'#ef4444':'#9ca3af'}" font-size="9" text-anchor="middle" font-family="DM Mono, monospace">CT: ${step.ct}s</text>`;
+      // OEE bar
+      const barW = (boxW - 16) * (step.oee/100);
+      const barColor = step.oee < 70 ? '#ef4444' : step.oee < 85 ? '#f59e0b' : '#00e5a0';
+      html += `<rect x="${x+8}" y="${y+44}" width="${boxW-16}" height="4" rx="2" fill="#1f2937"/>`;
+      html += `<rect x="${x+8}" y="${y+44}" width="${barW}" height="4" rx="2" fill="${barColor}"/>`;
+      html += `<text x="${x+boxW/2}" y="${y+62}" fill="${barColor}" font-size="9" text-anchor="middle" font-family="DM Mono, monospace">${step.oee}% OEE</text>`;
+      
+      // Bottleneck flame indicator
+      if(isBottleneck) {
+        html += `<text x="${x+boxW/2}" y="${y-8}" fill="#ef4444" font-size="9" text-anchor="middle" font-family="DM Mono, monospace">⚠ BOTTLENECK</text>`;
+      }
+    }
+    
+    // Timeline sawtooth connector
+    if(!isSupplier && !isCustomer) {
+      const tlX = x + boxW/2;
+      const tlY1 = midY + boxH/2;
+      html += `<line x1="${tlX}" y1="${tlY1}" x2="${tlX}" y2="${timelineY}" stroke="#1f2937" stroke-width="1" stroke-dasharray="3,2"/>`;
+      
+      // CT block on timeline
+      const ctBlockH = Math.min(50, step.ct * 0.6);
+      html += `<rect x="${tlX-8}" y="${timelineY-ctBlockH}" width="16" height="${ctBlockH}" rx="2" fill="#00e5a0" opacity="0.7"/>`;
+      html += `<text x="${tlX}" y="${timelineY+12}" fill="#6b7280" font-size="9" text-anchor="middle" font-family="DM Mono, monospace">${step.ct}s</text>`;
+    }
+  });
+  
+  // Timeline baseline
+  html += `<line x1="${startX+boxW/2}" y1="${timelineY}" x2="${startX+(n-1)*(boxW+20)+boxW/2}" y2="${timelineY}" stroke="#1f2937" stroke-width="2"/>`;
+  
+  // Lead time annotation
+  if(simResults) {
+    html += `<text x="${W/2}" y="${timelineY+28}" fill="#6b7280" font-size="10" text-anchor="middle" font-family="DM Mono, monospace">PRODUCTION LEAD TIME: ${simResults.leadTimeDays.toFixed(1)} days  |  VALUE-ADDED: ${Math.min(simResults.va_pct,99)}%</text>`;
+  }
+  
+  svg.innerHTML = html;
+}
+
+// ---- RUN SIMULATION ----
+async function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  btn.classList.add('running');
+  btn.textContent = '⟳ RUNNING';
+  
+  computeKPIs();
+  
+  // Animate WIP values changing
+  await animateSimulation();
+  
+  btn.classList.remove('running');
+  btn.textContent = '▶ RUN SIM';
+  
+  // Auto-trigger AI analysis
+  await aiAnalyzeResults();
+}
+
+async function animateSimulation() {
+  return new Promise(resolve => {
+    let frame = 0;
+    const maxFrames = 30;
+    const interval = setInterval(() => {
+      // Simulate WIP fluctuation
+      steps.filter(s=>!s.isSupplier&&!s.isCustomer).forEach(s => {
+        s.wip = Math.max(1, Math.round(s.wip + (Math.random()-0.5)*3));
+      });
+      computeKPIs();
+      drawVSM();
+      frame++;
+      if(frame >= maxFrames) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 60);
+  });
+}
+
+// ---- AI COPILOT ----
+async function aiAnalyzeResults() {
+  if(!simResults) return;
+  
+  const processSteps = steps.filter(s=>!s.isSupplier&&!s.isCustomer);
+  const context = `
+Current VSM state:
+- Customer demand: ${params.demand} units/day, Shift: ${params.shift}hrs
+- Takt time: ${Math.round(simResults.takt)}s
+- Bottleneck: ${simResults.bottleneck.name} (CT: ${simResults.bottleneck.ct}s, OEE: ${simResults.bottleneck.oee}%)
+- Total WIP: ${simResults.totalWIP} units
+- Lead time: ${simResults.leadTimeDays.toFixed(1)} days
+- Value-added: ${simResults.va_pct}%
+- Average OEE: ${simResults.avgOEE}% (target: ${params['oee-target']}%)
+- Process steps: ${processSteps.map(s=>`${s.name}(CT:${s.ct}s,OEE:${s.oee}%,WIP:${s.wip})`).join(', ')}
+`;
+  
+  addMessage('system', 'Simulation complete — analyzing results…');
+  showTyping();
+  
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: `You are an expert Industrial Engineer and Lean Manufacturing consultant. You analyze Value Stream Maps and provide precise, actionable recommendations. Be concise but specific — use IE terminology (takt time, OEE, kaizen burst, SMED, kanban, etc.). Format your response with clear sections. Avoid generic advice.`,
+        messages: [{ role: 'user', content: `Analyze this VSM simulation result and give me: 1) The top 3 wastes identified 2) One immediate kaizen opportunity 3) Future state recommendation to reduce lead time by at least 30%.\n\n${context}` }]
+      })
+    });
+    const data = await response.json();
+    hideTyping();
+    const text = data.content?.[0]?.text || 'Analysis complete.';
+    addMessage('ai', text);
+  } catch(e) {
+    hideTyping();
+    addMessage('ai', `Simulation complete. Based on the results:\n\n**Bottleneck:** ${simResults.bottleneck.name} at ${simResults.bottleneck.ct}s CT (takt = ${Math.round(simResults.takt)}s)\n\n**Top waste:** Excess WIP of ${simResults.totalWIP} units driving ${simResults.leadTimeDays.toFixed(1)}-day lead time.\n\n**Recommendation:** Apply SMED to ${simResults.bottleneck.name} changeover and introduce pull system with kanban sizing = demand × lead time.`);
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  
+  addMessage('user', text);
+  showTyping();
+  
+  const processSteps = steps.filter(s=>!s.isSupplier&&!s.isCustomer);
+  const context = simResults ? `Current VSM: demand=${params.demand}/day, takt=${Math.round(simResults.takt)}s, bottleneck=${simResults.bottleneck.name}, WIP=${simResults.totalWIP}, lead time=${simResults.leadTimeDays.toFixed(1)}days, OEE=${simResults.avgOEE}%.` : 'No simulation run yet.';
+  
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 600,
+        system: `You are an expert Industrial Engineer and Lean consultant embedded in a VSM Digital Twin tool. Answer IE questions concisely and precisely using correct terminology. ${context}`,
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+    const data = await response.json();
+    hideTyping();
+    addMessage('ai', data.content?.[0]?.text || 'Unable to get response.');
+  } catch(e) {
+    hideTyping();
+    addMessage('ai', 'Could not reach AI service. Please check your connection.');
+  }
+}
+
+function quickAsk(q) {
+  document.getElementById('chat-input').value = q;
+  sendMessage();
+}
+
+function handleKey(e) {
+  if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function addMessage(role, text) {
+  const area = document.getElementById('chat-area');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  if(role === 'ai') {
+    div.innerHTML = `<div class="ai-label">COPILOT</div>${text.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}`;
+  } else if(role === 'system') {
+    div.textContent = text;
+  } else {
+    div.textContent = text;
+  }
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+let typingEl = null;
+function showTyping() {
+  const area = document.getElementById('chat-area');
+  typingEl = document.createElement('div');
+  typingEl.className = 'typing';
+  typingEl.innerHTML = '<span></span><span></span><span></span>';
+  area.appendChild(typingEl);
+  area.scrollTop = area.scrollHeight;
+}
+function hideTyping() {
+  if(typingEl) { typingEl.remove(); typingEl = null; }
+}
+
+// Report tab
+function generateReport() {
+  if(!simResults) return;
+  const chatArea = document.getElementById('chat-area');
+  const q = `Generate a concise IE project report summary for my VSM Digital Twin results: takt=${Math.round(simResults.takt)}s, bottleneck=${simResults.bottleneck.name}, lead time=${simResults.leadTimeDays.toFixed(1)} days, OEE=${simResults.avgOEE}%, WIP=${simResults.totalWIP}. Format as an executive summary I can include in my portfolio.`;
+  document.getElementById('chat-input').value = q;
+  sendMessage();
+}
+
+// Responsive resize
+window.addEventListener('resize', () => { drawVSM(); });
+
+init();
+computeKPIs();
+drawVSM();
+</script>
+</body>
+</html>
